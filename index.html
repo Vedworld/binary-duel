@@ -70,7 +70,7 @@
   <button id="bPlay" title="Play / pause (Space)">❚❚</button>
   <button id="bRestart" title="Restart (R)">⟲</button>
   <span class="sep"></span>
-  <label title="Cell size (+ / -)">Cell <input id="rDensity" type="range" min="5" max="22" step="1"></label>
+  <label title="Cell size (+ / -)">Cell <input id="rDensity" type="range" min="3" max="18" step="1"></label>
   <label title="Brightness gain">Gain <input id="rGain" type="range" min="0.5" max="2.5" step="0.05" value="1"></label>
   <button id="bPalette" title="Colour (P)">Mono</button>
   <button id="bSource" title="Show the un-digitised 3D source (S)">Source</button>
@@ -490,7 +490,7 @@ const PALETTES = [
   { name: "Ice", c: [130, 205, 255] },
 ];
 const state = {
-  density: +store.get("binaryDuel.cell", clamp(Math.round(innerWidth / 120), 7, 12)),
+  density: +store.get("binaryDuel.cell2", clamp(Math.round(innerWidth / 240), 5, 8)),
   gain: 1,
   pal: +store.get("binaryDuel.pal", 0) % PALETTES.length,
   playing: true,
@@ -517,9 +517,10 @@ function buildAtlas() {
   }
 }
 
+let forcedSize = null;   // set by the GIF recorder to render at a fixed pixel size
 function resize() {
-  dpr = Math.min(2, window.devicePixelRatio || 1);
-  W = Math.round(innerWidth * dpr); H = Math.round(innerHeight * dpr);
+  dpr = forcedSize ? 1 : Math.min(2, window.devicePixelRatio || 1);
+  W = forcedSize ? forcedSize[0] : Math.round(innerWidth * dpr); H = forcedSize ? forcedSize[1] : Math.round(innerHeight * dpr);
   if (!W || !H) return;
   out.width = W; out.height = H;
   cellH = Math.max(4, Math.round(state.density * dpr));
@@ -960,7 +961,9 @@ function drawTrail(track, side, t) {
    ================================================================ */
 let T = 0, lastShot = -1;
 const moveEl = $("move");
+let moveSerial = 0, moveLabel = "";
 function showMove(label) {
+  moveSerial++; moveLabel = label;
   $("moveName").textContent = label.toUpperCase();
   $("moveBits").textContent = BIN(label);
   moveEl.classList.remove("pop"); void moveEl.offsetWidth; moveEl.classList.add("pop");
@@ -1095,10 +1098,16 @@ function drawVideo() {
    ================================================================ */
 const seekFill = document.querySelector("#seek i");
 let last = performance.now(), hudAt = 0, fpsN = 0, fpsT = 0, fps = 60;
+let running = true;
 function frame(now) {
+  if (!running) return;
   requestAnimationFrame(frame);
   if (!W || !H) { if (innerWidth && innerHeight) resize(); last = now; return; }
   const rdt = Math.min(.05, (now - last) / 1000); last = now;
+  step(rdt, now / 1000);
+  hud(now, rdt);
+}
+function step(rdt, nowSec) {
   let sdt = 0;
   if (state.mode === "duel") {
     if (state.playing) {
@@ -1119,8 +1128,9 @@ function frame(now) {
   shake = Math.max(0, shake - rdt * 12);
   punch = Math.max(0, punch - rdt * .6);
   glitch = Math.max(0, glitch - rdt);
-  renderDigits(now / 1000);
-
+  renderDigits(nowSec);
+}
+function hud(now, rdt) {
   fpsN++; fpsT += rdt;
   if (fpsT > .5) { fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
   if (now - hudAt > 90) {
@@ -1157,9 +1167,9 @@ function restart() {
   setPlaying(true);
 }
 function setDensity(v) {
-  state.density = clamp(Math.round(v), 5, 22);
+  state.density = clamp(Math.round(v), 3, 18);
   $("rDensity").value = state.density;
-  store.set("binaryDuel.cell", state.density);
+  store.set("binaryDuel.cell2", state.density);
   resize();
 }
 function cyclePalette() {
@@ -1255,6 +1265,14 @@ requestAnimationFrame(frame);
 
 window.binaryDuel = {
   seek,
+  // frame-by-frame recording (used to make the README GIF)
+  record: {
+    begin(w, h, cell) { running = false; forcedSize = [w, h]; state.density = cell; state.mode = "duel"; state.playing = true; resize(); seek(0); ash.length = 0; },
+    step(rdt, nowSec) {
+      const t0 = T; step(rdt, nowSec);
+      return { T, wrapped: T < t0, out, glow, glowOpacity: +glow.style.opacity, moveSerial, moveLabel, caption: caption.textContent, captionOpacity: +caption.style.opacity || 0, captionTop: caption.style.top };
+    },
+  },
   clashReport: () => EVENTS.filter(e => e.def).map(e => {
     const { a, b } = rigsAt(e.t);
     return { t: e.t, label: e.label, gap: +segClosest(a.guardPt, a.tip, b.guardPt, b.tip).d.toFixed(1) };
