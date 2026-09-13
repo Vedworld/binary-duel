@@ -2,7 +2,9 @@
 
 A 3D knight duel drawn entirely in 0s and 1s.
 
-**Live:** https://vedworld.github.io/binary-duel/
+## [▶ PLAY IT LIVE — vedworld.github.io/binary-duel](https://vedworld.github.io/binary-duel/)
+
+> GitHub only shows the code here. Click the link above to run the animation in your browser.
 
 - 20-second choreographed sword fight: overhead, counter, spin slash, kick, aerial flip, spin disarm
 - 3D knights with lighting, shadows and an orbiting camera, turned into a binary digit grid
